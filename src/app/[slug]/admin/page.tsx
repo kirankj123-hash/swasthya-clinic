@@ -70,7 +70,7 @@ export default async function AdminDashboard({ params }: { params: Promise<{ slu
                 {stats.recent.map((a, i) => (
                   <tr key={i} style={{ borderBottom: i === stats.recent.length - 1 ? 'none' : '1px solid var(--color-bg)' }}>
                     <td style={{ padding: '1rem', fontWeight: '700', color: 'var(--color-primary)' }}>#{a.token_number}</td>
-                    <td style={{ padding: '1rem', fontWeight: '600' }}>{(a.patient as any)?.name}</td>
+                    <td style={{ padding: '1rem', fontWeight: '600' }}>{(a.patient as { name: string } | null)?.name}</td>
                     <td style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>{a.complaint}</td>
                     <td style={{ padding: '1rem', textTransform: 'capitalize' }}>{a.visit_type}</td>
                     <td style={{ padding: '1rem' }}>
