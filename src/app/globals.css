@@ -1,18 +1,17 @@
 :root {
-  /* Swasthya Clinic — Medical teal palette */
-  --color-bg: #f0f9ff;
-  --color-surface: #ffffff;
-  --color-primary: #0891b2;
+  --color-primary: #0891b2;        /* clinical teal */
   --color-primary-hover: #0e7490;
   --color-primary-soft: #e0f2fe;
   --color-primary-outline: #bae6fd;
-  --color-accent: #059669;
+  --color-accent: #059669;         /* medical green */
   --color-accent-soft: #d1fae5;
-  --color-gold: #f59e0b;
+  --color-gold: #f59e0b;           /* amber for accents */
   --color-gold-light: #fef3c7;
-  --color-border: #bae6fd;
+  --color-bg: #f0f9ff;
   --color-text: #0c4a6e;
   --color-text-muted: #0369a1;
+  --color-border: #bae6fd;
+  --color-surface: #ffffff;
 
   --color-success: #15803d;
   --color-success-bg: #f0fdf4;
