@@ -1,12 +1,22 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import Link from 'next/link';
-import { BdaSealMark } from '@/components/BdaSealMark';
 
 export const metadata: Metadata = {
-  title: 'BDA CPIMS | Commissioner Public Interaction Management System',
-  description: 'Bangalore Development Authority — Commissioner Public Interaction Management System (BDA CPIMS)',
+  title: 'Swasthya Clinic | Voice-First Appointment Management',
+  description: 'Swasthya Clinic — Voice-first patient appointment management for Indian clinics. Kannada & Hindi support.',
 };
+
+function StethoscopeIcon() {
+  return (
+    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="20" cy="20" r="20" fill="#0891b2" />
+      <path d="M13 11c0-1.1.9-2 2-2h2c1.1 0 2 .9 2 2v7c0 3.3-2.7 6-6 6" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M13 24c0 3.3 2.7 6 6 6s6-2.7 6-6v-2" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="27" cy="14" r="2.2" stroke="white" strokeWidth="1.8" />
+    </svg>
+  );
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -21,19 +31,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="max-w-7xl px-4 bda-header-inner">
             <Link href="/" className="bda-brand">
               <div className="bda-seal" aria-hidden="true">
-                <BdaSealMark idPrefix="header-seal" size={52} />
+                <StethoscopeIcon />
               </div>
               <div className="bda-brand-text">
-                <span className="bda-brand-kannada">ಬೆಂಗಳೂರು ಅಭಿವೃದ್ಧಿ ಪ್ರಾಧಿಕಾರ</span>
-                <span className="bda-brand-english">Bangalore Development Authority</span>
+                <span className="bda-brand-kannada">ಸ್ವಾಸ್ಥ್ಯ ಕ್ಲಿನಿಕ್</span>
+                <span className="bda-brand-english">Swasthya Clinic</span>
               </div>
-              <div className="bda-prism-badge">BDA CPIMS</div>
+              <div className="bda-prism-badge">VOICE-FIRST</div>
             </Link>
 
             <nav className="bda-nav">
-              <Link href="/citizen" className="bda-nav-link">Citizen Services</Link>
-              <Link href="/staff" className="bda-nav-link">Staff Operations</Link>
-              <Link href="/dashboard" className="bda-nav-link">Commissioner View</Link>
+              <Link href="/onboard" className="bda-nav-link">Register Clinic</Link>
             </nav>
           </div>
         </header>
@@ -44,12 +52,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <footer className="bda-footer">
           <div className="max-w-7xl px-4">
-            <div className="bda-footer-mark" aria-hidden="true">
-              <BdaSealMark idPrefix="footer-seal" size={32} />
-            </div>
-            <span>BDA CPIMS — Commissioner Public Interaction Management System</span>
+            <StethoscopeIcon />
+            <span>Swasthya Clinic — Voice-first appointment management</span>
             <span className="bda-footer-sep">|</span>
-            <span>ಬೆಂಗಳೂರು ಅಭಿವೃದ್ಧಿ ಪ್ರಾಧಿಕಾರ</span>
+            <span>ಕನ್ನಡ · हिंदी · English</span>
           </div>
         </footer>
       </body>
