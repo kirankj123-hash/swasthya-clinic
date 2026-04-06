@@ -1,6 +1,25 @@
-import { headers } from 'next/headers';
 import { getAdminStats, getDoctorForClinic } from '@/app/actions';
 import Link from 'next/link';
+
+function getPatientDisplayName(patient: unknown): string {
+  if (Array.isArray(patient)) {
+    const firstPatient = patient[0];
+    if (
+      firstPatient &&
+      typeof firstPatient === 'object' &&
+      'name' in firstPatient &&
+      typeof firstPatient.name === 'string'
+    ) {
+      return firstPatient.name;
+    }
+  }
+
+  if (patient && typeof patient === 'object' && 'name' in patient && typeof patient.name === 'string') {
+    return patient.name;
+  }
+
+  return 'Patient';
+}
 
 export default async function AdminDashboard({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -70,7 +89,7 @@ export default async function AdminDashboard({ params }: { params: Promise<{ slu
                 {stats.recent.map((a, i) => (
                   <tr key={i} style={{ borderBottom: i === stats.recent.length - 1 ? 'none' : '1px solid var(--color-bg)' }}>
                     <td style={{ padding: '1rem', fontWeight: '700', color: 'var(--color-primary)' }}>#{a.token_number}</td>
-                    <td style={{ padding: '1rem', fontWeight: '600' }}>{(a.patient as { name: string } | null)?.name}</td>
+                    <td style={{ padding: '1rem', fontWeight: '600' }}>{getPatientDisplayName(a.patient)}</td>
                     <td style={{ padding: '1rem', color: 'var(--color-text-muted)' }}>{a.complaint}</td>
                     <td style={{ padding: '1rem', textTransform: 'capitalize' }}>{a.visit_type}</td>
                     <td style={{ padding: '1rem' }}>

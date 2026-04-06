@@ -1,26 +1,25 @@
 'use server';
 
-import { VoiceDraft } from './types';
+import type { PatientIntakeDraft, VoiceDraft } from './types';
 import { SarvamAIClient } from 'sarvamai';
 import { parseBuffer } from 'music-metadata';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { extractStructuredVoiceDraft } from './aiExtractionAdapter';
 
 const MAX_VOICE_DURATION_TOLERANCE_SECONDS = 30.5;
 // Conservative ceiling for a 30s browser speech capture. This blocks oversized uploads even
 // when some webm blobs do not expose container duration metadata server-side.
 const MAX_VOICE_FILE_BYTES = 512 * 1024;
 
-const emptyStructuredData = {
-  applicantName: null,
-  mobile: null,
-  preferredDay: null,
-  mode: null,
-  purpose: null,
+const emptyStructuredData: PatientIntakeDraft = {
+  patientName: null,
+  age: null,
+  phone: null,
+  complaint: null,
+  visitType: null,
   summary: '',
-  missingFields: ['applicantName', 'mobile', 'preferredDay', 'mode', 'purpose']
+  missingFields: ['Patient Name', 'Age', 'Phone', 'Complaint', 'Visit Type'],
 };
 
 function truncateErrorMessage(value: string, maxLength = 240): string {
@@ -64,17 +63,32 @@ function extractNestedErrorMessage(value: unknown): string | null {
   return null;
 }
 
-function getReadableVoiceProcessingError(error: any): string {
-  const statusCode = error?.statusCode ?? error?.status ?? error?.response?.status;
+function getNestedProperty(value: unknown, key: string): unknown {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  return record[key];
+}
+
+function getReadableVoiceProcessingError(error: unknown): string {
+  const statusCode =
+    getNestedProperty(error, 'statusCode') ??
+    getNestedProperty(error, 'status') ??
+    getNestedProperty(getNestedProperty(error, 'response'), 'status');
   const detail =
-    extractNestedErrorMessage(error?.body) ||
-    extractNestedErrorMessage(error?.response?.data) ||
-    extractNestedErrorMessage(error?.response?.body) ||
-    extractNestedErrorMessage(error?.message) ||
+    extractNestedErrorMessage(getNestedProperty(error, 'body')) ||
+    extractNestedErrorMessage(getNestedProperty(getNestedProperty(error, 'response'), 'data')) ||
+    extractNestedErrorMessage(getNestedProperty(getNestedProperty(error, 'response'), 'body')) ||
+    extractNestedErrorMessage(getNestedProperty(error, 'message')) ||
     extractNestedErrorMessage(error);
 
   if (detail) {
-    const prefix = statusCode ? `Backend error ${statusCode}: ` : 'Backend error: ';
+    const prefix =
+      typeof statusCode === 'number' || typeof statusCode === 'string'
+        ? `Backend error ${statusCode}: `
+        : 'Backend error: ';
     return truncateErrorMessage(`${prefix}${detail}`);
   }
 
@@ -118,8 +132,11 @@ async function getAudioDurationSeconds(file: File, buffer: Buffer): Promise<numb
     );
 
     return typeof metadata.format.duration === 'number' ? metadata.format.duration : null;
-  } catch (error: any) {
-    console.warn('Voice duration metadata unavailable:', error?.message);
+  } catch (error: unknown) {
+    console.warn(
+      'Voice duration metadata unavailable:',
+      error instanceof Error ? error.message : 'Unknown metadata error'
+    );
     return null;
   }
 }
@@ -176,13 +193,19 @@ export async function transcribeAudio(formData: FormData): Promise<string> {
   const tempFilePath = path.join(os.tmpdir(), `transcript_${Date.now()}${getAudioExtension(audioFile)}`);
   fs.writeFileSync(tempFilePath, validated.buffer);
 
-  const response = await client.speechToText.transcribe({
-    file: fs.createReadStream(tempFilePath) as any,
-    model: 'saaras:v3',
-    mode: 'transcribe',
-  });
-  fs.unlinkSync(tempFilePath);
-  return response.transcript?.trim() ?? '';
+  try {
+    const response = await client.speechToText.transcribe({
+      file: fs.createReadStream(tempFilePath),
+      model: 'saaras:v3',
+      mode: 'transcribe',
+    });
+
+    return response.transcript?.trim() ?? '';
+  } finally {
+    if (fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+  }
 }
 
 /**
@@ -201,13 +224,20 @@ export async function transcribeChunk(formData: FormData): Promise<string> {
     const client = new SarvamAIClient({ apiSubscriptionKey: sarvamKey });
     const tempFilePath = path.join(os.tmpdir(), `chunk_${Date.now()}${getAudioExtension(audioChunk)}`);
     fs.writeFileSync(tempFilePath, validatedAudio.buffer);
-    const response = await client.speechToText.transcribe({
-      file: fs.createReadStream(tempFilePath) as any,
-      model: 'saaras:v3',
-      mode: 'transcribe'
-    });
-    fs.unlinkSync(tempFilePath);
-    return response.transcript?.trim() ?? '';
+
+    try {
+      const response = await client.speechToText.transcribe({
+        file: fs.createReadStream(tempFilePath),
+        model: 'saaras:v3',
+        mode: 'transcribe',
+      });
+
+      return response.transcript?.trim() ?? '';
+    } finally {
+      if (fs.existsSync(tempFilePath)) {
+        fs.unlinkSync(tempFilePath);
+      }
+    }
   } catch {
     return ''; // Silently degrade — live preview is best-effort
   }
@@ -215,9 +245,6 @@ export async function transcribeChunk(formData: FormData): Promise<string> {
 
 export async function processRealVoiceInput(formData: FormData): Promise<VoiceDraft> {
   const audioFile = formData.get('audio') as File | null;
-  const category = formData.get('category') as string || 'General';
-  const clientDurationMsValue = formData.get('durationMs');
-  const clientDurationMs = typeof clientDurationMsValue === 'string' ? Number(clientDurationMsValue) : null;
 
   if (!audioFile) {
     return {
@@ -230,52 +257,21 @@ export async function processRealVoiceInput(formData: FormData): Promise<VoiceDr
     };
   }
 
-  const sarvamKey = process.env.SARVAM_API_KEY;
-  if (!sarvamKey) {
-    return {
-      id: Math.random().toString(36).substring(7),
-      transcript: '',
-      structuredData: { ...emptyStructuredData, summary: 'Transcription service unavailable.' },
-      isFallback: true,
-      status: 'failed',
-      errorMsg: 'Voice transcription service is temporarily unavailable.',
-    };
-  }
-
   try {
-    const validatedAudio = await validateFinalAudio(
-      audioFile,
-      Number.isFinite(clientDurationMs) ? clientDurationMs : null
-    );
-    if (!validatedAudio.ok) {
+    const transcript = await transcribeAudio(formData);
+    if (!transcript.trim()) {
       return {
         id: Math.random().toString(36).substring(7),
         transcript: '',
-        structuredData: { ...emptyStructuredData, summary: validatedAudio.error },
+        structuredData: { ...emptyStructuredData, summary: 'Could not transcribe audio.' },
         isFallback: true,
         status: 'failed',
-        errorMsg: validatedAudio.error,
+        errorMsg: 'Could not transcribe audio. Please try again.',
       };
     }
 
-    const client = new SarvamAIClient({ apiSubscriptionKey: sarvamKey });
-
-    // Write audio to temp file for Sarvam SDK streaming.
-    const tempFilePath = path.join(os.tmpdir(), `voice_intake_${Date.now()}${getAudioExtension(audioFile)}`);
-    fs.writeFileSync(tempFilePath, validatedAudio.buffer);
-
-    // Step 1: Transcribe via Sarvam saaras:v3 (supports Kannada + English).
-    const response = await client.speechToText.transcribe({
-      file: fs.createReadStream(tempFilePath) as any,
-      model: 'saaras:v3',
-      mode: 'transcribe'
-    });
-    fs.unlinkSync(tempFilePath);
-
-    const transcript = response.transcript || '';
-
-    // Step 2: Extract structured fields via Sarvam chat.
-    const { structuredData, modelUsed } = await extractStructuredVoiceDraft(transcript, category);
+    const { extractPatientIntakeDraft } = await import('./patientExtractionAdapter');
+    const { structuredData, modelUsed } = await extractPatientIntakeDraft(transcript);
 
     return {
       id: Math.random().toString(36).substring(7),
@@ -283,12 +279,14 @@ export async function processRealVoiceInput(formData: FormData): Promise<VoiceDr
       structuredData,
       isFallback: false,
       status: 'ready',
-      modelUsed: `saaras:v3 (STT) + ${modelUsed} (extract)`
+      modelUsed: `saaras:v3 (STT) + ${modelUsed} (extract)`,
     };
-
-  } catch (err: any) {
-    console.error('Voice STT processing error:', err?.message);
-    const readableError = getReadableVoiceProcessingError(err);
+  } catch (error: unknown) {
+    console.error(
+      'Voice STT processing error:',
+      error instanceof Error ? error.message : 'Unknown voice processing error'
+    );
+    const readableError = getReadableVoiceProcessingError(error);
     return {
       id: Math.random().toString(36).substring(7),
       transcript: '',
